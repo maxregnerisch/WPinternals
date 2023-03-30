@@ -1,4 +1,4 @@
-﻿// Copyright (c) 2018, Rene Lergner - @Heathcliff74xda
+// Copyright (c) 2018, Rene Lergner - @Heathcliff74xda
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
 // copy of this software and associated documentation files (the "Software"),
@@ -31,6 +31,10 @@ using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Data;
+using System.Windows.Input;
+using System.Windows.Threading;
+using WPinternalsSDK;
+
 
 namespace WPinternals
 {
@@ -275,27 +279,14 @@ namespace WPinternals
 
         private void DownloadSelected()
         {
-            foreach (SearchResult Result in SearchResultList.Where(r => r.IsSelected))
+            foreach (SearchResult Result in SearchResultList)
             {
-                App.DownloadManager.Download(Result.URLs, Result.Category, Result.Callback, Result.State);
+                if (Result.IsSelected)
+                {
+                    Download(Result.URL, Result.Category, Result.Callback, Result.State);
+                }
             }
-        }
 
-        private void FFUDownloaded(string[] Files, object State)
-        {
-            App.Config.AddFfuToRepository(Files[0]);
-        }
-
-        private void FFUDownloadedAndCheckSupported(string[] Files, object State)
-        {
-            App.Config.AddFfuToRepository(Files[0]);
-
-            if (!App.Config.FFURepository.Any(e => App.PatchEngine.PatchDefinitions.First(p => p.Name == "SecureBootHack-V2-EFIESP").TargetVersions.Any(v => v.Description == e.OSVersion)))
-            {
-                const string ProductType2 = "RM-1085";
-                string URL = LumiaDownloadModel.SearchFFU(ProductType2, null, null);
-                Download(URL, ProductType2, FFUDownloaded, null);
-            }
         }
 
         private void EmergencyDownloaded(string[] Files, object State)
@@ -821,11 +812,11 @@ namespace WPinternals
         //     An System.Int64 value that indicates the number of bytes that will be received.
         public long TotalBytesToReceive { get; }
 
-        internal HttpClientDownloadProgress(long BytesReceived, long TotalBytesToReceive)
+        public HttpClientDownloadProgress(long bytesReceived, long totalBytesToReceive)
         {
-            this.TotalBytesToReceive = TotalBytesToReceive;
-            this.BytesReceived = BytesReceived;
-            ProgressPercentage = (int)Math.Round((float)BytesReceived / TotalBytesToReceive * 100f);
+            BytesReceived = bytesReceived;
+            TotalBytesToReceive = totalBytesToReceive;
+            ProgressPercentage = (int)(bytesReceived * 100 / totalBytesToReceive);
         }
     }
 
@@ -863,16 +854,8 @@ namespace WPinternals
 
         private static async Task CopyToAsync(this Stream source, Stream destination, int bufferSize, IProgress<long> progress = null, CancellationToken cancellationToken = default(CancellationToken))
         {
-            if (bufferSize < 0)
+            if (bufferSize <= 0)
                 throw new ArgumentOutOfRangeException(nameof(bufferSize));
-            if (source is null)
-                throw new ArgumentNullException(nameof(source));
-            if (!source.CanRead)
-                throw new InvalidOperationException($"'{nameof(source)}' is not readable.");
-            if (destination == null)
-                throw new ArgumentNullException(nameof(destination));
-            if (!destination.CanWrite)
-                throw new InvalidOperationException($"'{nameof(destination)}' is not writable.");
 
             byte[] buffer = new byte[bufferSize];
             long totalBytesRead = 0;
